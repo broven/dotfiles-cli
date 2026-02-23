@@ -12,14 +12,15 @@ func Link(repoInput string, specified []string, dry bool) error {
 	}
 
 	m := cfg.Mappings
+	relink := cfg.Relink
 	var linkErr error
 	if len(specified) == 0 {
-		linkErr = m.CreateAllLinks(repo, dry)
+		linkErr = m.CreateAllLinksWithRelink(repo, dry, relink)
 		if e, ok := linkErr.(*NothingLinkedError); ok {
 			e.RepoPath = repo.String()
 		}
 	} else {
-		linkErr = m.CreateSomeLinks(specified, repo, dry)
+		linkErr = m.CreateSomeLinksWithRelink(specified, repo, dry, relink)
 	}
 
 	managed, err := syncPackageManagers(cfg.PackageManagers, dry)
