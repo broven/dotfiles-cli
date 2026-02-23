@@ -128,6 +128,8 @@ link:
 
 Values of the mappings object are basically strings representing destination paths, but they also can be arrays of strings. In the case, multiple symbolic links will be created for the source file.
 
+Note: Keys can usually be written without quotes, but if a key may conflict with YAML syntax (for example it contains `:` or looks like a boolean/number), wrap the key in quotes.
+
 For example, the following configuration will make two symbolic links `~/.vimrc` and `~/.config/nvim/init.vim` for `vimrc` source file.
 
 
