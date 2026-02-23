@@ -31,9 +31,27 @@ type Mappings map[string][]abspath.AbsPath
 type rawMappings map[string][]string
 type rawPartialMappings map[string]string
 
+type HomebrewPackages struct {
+	Tap     []string
+	Formula []string
+	Cask    []string
+}
+
+type PackageManagers struct {
+	NPM      []string
+	Homebrew HomebrewPackages
+}
+
+type Config struct {
+	Mappings        Mappings
+	PackageManagers PackageManagers
+}
+
 type parsedMappingsYAML struct {
 	link        rawMappings
 	partialLink rawPartialMappings
+	npm         []string
+	homebrew    HomebrewPackages
 }
 
 var defaultMappings = map[string]rawMappings{
@@ -120,8 +138,10 @@ func parseMappingsYAML(file abspath.AbsPath) (*parsedMappingsYAML, error) {
 	}
 
 	ret := &parsedMappingsYAML{}
+	hasNamespace := false
 
 	if linkMappings, ok := m["link"]; ok {
+		hasNamespace = true
 		switch section := linkMappings.(type) {
 		case map[string]interface{}:
 			raw, err := parseRawMappings(section)
@@ -135,6 +155,7 @@ func parseMappingsYAML(file abspath.AbsPath) (*parsedMappingsYAML, error) {
 	}
 
 	if partialMappings, ok := m["partial_link"]; ok {
+		hasNamespace = true
 		switch section := partialMappings.(type) {
 		case map[string]interface{}:
 			raw, err := parseRawPartialMappings(section)
@@ -147,8 +168,37 @@ func parseMappingsYAML(file abspath.AbsPath) (*parsedMappingsYAML, error) {
 		}
 	}
 
-	if ret.link == nil && ret.partialLink == nil {
-		return nil, fmt.Errorf("'link' or 'partial_link' section in mappings is required")
+	if npmMappings, ok := m["npm"]; ok {
+		hasNamespace = true
+		raw, err := parseRawStringList(npmMappings, "npm")
+		if err != nil {
+			return nil, err
+		}
+		ret.npm = raw
+	}
+
+	if homebrewMappings, ok := m["homebrew"]; ok {
+		hasNamespace = true
+		switch section := homebrewMappings.(type) {
+		case map[string]interface{}:
+			raw, err := parseRawHomebrew(section)
+			if err != nil {
+				return nil, err
+			}
+			ret.homebrew = raw
+		case []interface{}:
+			raw, err := parseRawStringList(section, "homebrew")
+			if err != nil {
+				return nil, err
+			}
+			ret.homebrew.Formula = raw
+		default:
+			return nil, fmt.Errorf("'homebrew' section in mappings must be an object or string[]")
+		}
+	}
+
+	if !hasNamespace {
+		return nil, fmt.Errorf("at least one of 'link', 'partial_link', 'npm', or 'homebrew' sections in mappings is required")
 	}
 
 	return ret, nil
@@ -196,6 +246,55 @@ func parseRawPartialMappings(m map[string]interface{}) (rawPartialMappings, erro
 		}
 	}
 	return maps, nil
+}
+
+func parseRawStringList(raw interface{}, namespace string) ([]string, error) {
+	values, ok := raw.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("'%s' section in mappings must be string[]", namespace)
+	}
+
+	ret := make([]string, 0, len(values))
+	for _, v := range values {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("value of '%s' section must be string[]: %v", namespace, values)
+		}
+		if s == "" {
+			continue
+		}
+		ret = append(ret, s)
+	}
+	return ret, nil
+}
+
+func parseRawHomebrew(m map[string]interface{}) (HomebrewPackages, error) {
+	ret := HomebrewPackages{}
+	for key, raw := range m {
+		switch key {
+		case "tap":
+			tap, err := parseRawStringList(raw, "homebrew.tap")
+			if err != nil {
+				return HomebrewPackages{}, err
+			}
+			ret.Tap = tap
+		case "formula":
+			formula, err := parseRawStringList(raw, "homebrew.formula")
+			if err != nil {
+				return HomebrewPackages{}, err
+			}
+			ret.Formula = formula
+		case "cask":
+			cask, err := parseRawStringList(raw, "homebrew.cask")
+			if err != nil {
+				return HomebrewPackages{}, err
+			}
+			ret.Cask = cask
+		default:
+			return HomebrewPackages{}, fmt.Errorf("unknown key in 'homebrew' section: %s", key)
+		}
+	}
+	return ret, nil
 }
 
 func convertRawMappingsToMappings(raw rawMappings) (Mappings, error) {
@@ -276,6 +375,40 @@ func mergePartialMappingsFromFile(dist rawPartialMappings, file abspath.AbsPath)
 	return nil
 }
 
+func appendUniqueStrings(dist []string, src []string) []string {
+	if len(src) == 0 {
+		return dist
+	}
+	seen := map[string]struct{}{}
+	for _, v := range dist {
+		seen[v] = struct{}{}
+	}
+	for _, v := range src {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		dist = append(dist, v)
+		seen[v] = struct{}{}
+	}
+	return dist
+}
+
+func mergePackageManagersFromFile(dist *PackageManagers, file abspath.AbsPath) error {
+	parsed, err := parseMappingsYAML(file)
+	if err != nil {
+		return err
+	}
+	if parsed == nil {
+		return nil
+	}
+
+	dist.NPM = appendUniqueStrings(dist.NPM, parsed.npm)
+	dist.Homebrew.Tap = appendUniqueStrings(dist.Homebrew.Tap, parsed.homebrew.Tap)
+	dist.Homebrew.Formula = appendUniqueStrings(dist.Homebrew.Formula, parsed.homebrew.Formula)
+	dist.Homebrew.Cask = appendUniqueStrings(dist.Homebrew.Cask, parsed.homebrew.Cask)
+	return nil
+}
+
 func mergeMappingsFromPreferredFile(dist Mappings, parent abspath.AbsPath, name string) error {
 	root := parent.Join(name)
 	if _, err := os.Stat(root.String()); err == nil {
@@ -312,13 +445,32 @@ func mergePartialMappingsFromPreferredFile(dist rawPartialMappings, parent abspa
 	return nil
 }
 
+func mergePackageManagersFromPreferredFile(dist *PackageManagers, parent abspath.AbsPath, name string) error {
+	root := parent.Join(name)
+	if _, err := os.Stat(root.String()); err == nil {
+		return mergePackageManagersFromFile(dist, root)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	dotfiles := parent.Join(".dotfiles").Join(name)
+	if _, err := os.Stat(dotfiles.String()); err == nil {
+		return mergePackageManagersFromFile(dist, dotfiles)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
 func isUnixLikePlatform(platform string) bool {
 	return platform == "linux" || platform == "darwin"
 }
 
-func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, error) {
+func GetConfigForPlatform(platform string, parent abspath.AbsPath) (*Config, error) {
 	m := Mappings{}
 	partial := rawPartialMappings{}
+	pm := PackageManagers{}
 
 	if isUnixLikePlatform(platform) {
 		if err := mergeMappingsFromDefault(m, unixLikePlatformName); err != nil {
@@ -335,6 +487,9 @@ func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, 
 	if err := mergePartialMappingsFromPreferredFile(partial, parent, "mappings.yaml"); err != nil {
 		return nil, err
 	}
+	if err := mergePackageManagersFromPreferredFile(&pm, parent, "mappings.yaml"); err != nil {
+		return nil, err
+	}
 
 	if isUnixLikePlatform(platform) {
 		if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.yaml", unixLikePlatformName)); err != nil {
@@ -343,11 +498,17 @@ func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, 
 		if err := mergePartialMappingsFromPreferredFile(partial, parent, fmt.Sprintf("mappings_%s.yaml", unixLikePlatformName)); err != nil {
 			return nil, err
 		}
+		if err := mergePackageManagersFromPreferredFile(&pm, parent, fmt.Sprintf("mappings_%s.yaml", unixLikePlatformName)); err != nil {
+			return nil, err
+		}
 	}
 	if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.yaml", platform)); err != nil {
 		return nil, err
 	}
 	if err := mergePartialMappingsFromPreferredFile(partial, parent, fmt.Sprintf("mappings_%s.yaml", platform)); err != nil {
+		return nil, err
+	}
+	if err := mergePackageManagersFromPreferredFile(&pm, parent, fmt.Sprintf("mappings_%s.yaml", platform)); err != nil {
 		return nil, err
 	}
 
@@ -363,7 +524,15 @@ func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, 
 		m[k] = v
 	}
 
-	return m, nil
+	return &Config{Mappings: m, PackageManagers: pm}, nil
+}
+
+func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, error) {
+	cfg, err := GetConfigForPlatform(platform, parent)
+	if err != nil {
+		return nil, err
+	}
+	return cfg.Mappings, nil
 }
 
 func expandPartialMappings(partial rawPartialMappings, repo abspath.AbsPath) (Mappings, error) {
@@ -399,6 +568,10 @@ func expandPartialMappings(partial rawPartialMappings, repo abspath.AbsPath) (Ma
 
 func GetMappings(configDir abspath.AbsPath) (Mappings, error) {
 	return GetMappingsForPlatform(runtime.GOOS, configDir)
+}
+
+func GetConfig(configDir abspath.AbsPath) (*Config, error) {
+	return GetConfigForPlatform(runtime.GOOS, configDir)
 }
 
 func link(from, to abspath.AbsPath, dry bool) (bool, error) {
