@@ -1,7 +1,6 @@
 package dotfiles
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/rhysd/abspath"
+	"gopkg.in/yaml.v3"
 )
 
 type NothingLinkedError struct {
@@ -28,15 +28,15 @@ func (err NothingLinkedError) Error() string {
 const unixLikePlatformName = "unixlike"
 
 type Mappings map[string][]abspath.AbsPath
-type mappingsJSON map[string][]string
+type rawMappings map[string][]string
 
-var defaultMappings = map[string]mappingsJSON{
-	"windows": mappingsJSON{
+var defaultMappings = map[string]rawMappings{
+	"windows": rawMappings{
 		".gvimrc": []string{"~/vimfiles/gvimrc"},
 		".vim":    []string{"~/vimfiles"},
 		".vimrc":  []string{"~/vimfiles/vimrc"},
 	},
-	unixLikePlatformName: mappingsJSON{
+	unixLikePlatformName: rawMappings{
 		".agignore":      []string{"~/.agignore"},
 		".bash_login":    []string{"~/.bash_login"},
 		".bash_profile":  []string{"~/.bash_profile"},
@@ -82,14 +82,14 @@ var defaultMappings = map[string]mappingsJSON{
 		"init.el":        []string{"~/.emacs.d/init.el"},
 		"peco":           []string{"~/.config/peco"},
 	},
-	"linux": mappingsJSON{
+	"linux": rawMappings{
 		".Xmodmap":    []string{"~/.Xmodmap"},
 		".Xresources": []string{"~/.Xresources"},
 		"Xmodmap":     []string{"~/.Xmodmap"},
 		"Xresources":  []string{"~/.Xresources"},
 		"rc.lua":      []string{"~/.config/rc.lua"},
 	},
-	"darwin": mappingsJSON{
+	"darwin": rawMappings{
 		".htoprc": []string{"~/.htoprc"},
 		"htoprc":  []string{"~/.htoprc"},
 	},
@@ -99,7 +99,7 @@ type PathLink struct {
 	src, dst string
 }
 
-func parseMappingsJSON(file abspath.AbsPath) (mappingsJSON, error) {
+func parseMappingsYAML(file abspath.AbsPath) (rawMappings, error) {
 	var m map[string]interface{}
 
 	bytes, err := ioutil.ReadFile(file.String())
@@ -109,11 +109,24 @@ func parseMappingsJSON(file abspath.AbsPath) (mappingsJSON, error) {
 		return nil, nil
 	}
 
-	if err := json.Unmarshal(bytes, &m); err != nil {
+	if err := yaml.Unmarshal(bytes, &m); err != nil {
 		return nil, err
 	}
 
-	maps := make(mappingsJSON, len(m))
+	linkMappings, ok := m["link"]
+	if !ok {
+		return nil, fmt.Errorf("'link' section in mappings is required")
+	}
+	switch section := linkMappings.(type) {
+	case map[string]interface{}:
+		return parseRawMappings(section)
+	default:
+		return nil, fmt.Errorf("'link' section in mappings must be an object")
+	}
+}
+
+func parseRawMappings(m map[string]interface{}) (rawMappings, error) {
+	maps := make(rawMappings, len(m))
 	for k, v := range m {
 		switch v := v.(type) {
 		case string:
@@ -134,12 +147,12 @@ func parseMappingsJSON(file abspath.AbsPath) (mappingsJSON, error) {
 	return maps, nil
 }
 
-func convertMappingsJSONToMappings(json mappingsJSON) (Mappings, error) {
-	if json == nil {
+func convertRawMappingsToMappings(raw rawMappings) (Mappings, error) {
+	if raw == nil {
 		return nil, nil
 	}
-	m := make(Mappings, len(json))
-	for k, vs := range json {
+	m := make(Mappings, len(raw))
+	for k, vs := range raw {
 		if k == "" {
 			return nil, fmt.Errorf("empty key cannot be included.  Note: Corresponding value is '%s'", vs)
 		}
@@ -163,7 +176,7 @@ func convertMappingsJSONToMappings(json mappingsJSON) (Mappings, error) {
 }
 
 func mergeMappingsFromDefault(dist Mappings, platform string) error {
-	m, err := convertMappingsJSONToMappings(defaultMappings[platform])
+	m, err := convertRawMappingsToMappings(defaultMappings[platform])
 	if err != nil {
 		return err
 	}
@@ -176,15 +189,15 @@ func mergeMappingsFromDefault(dist Mappings, platform string) error {
 }
 
 func mergeMappingsFromFile(dist Mappings, file abspath.AbsPath) error {
-	j, err := parseMappingsJSON(file)
+	raw, err := parseMappingsYAML(file)
 	if err != nil {
 		return err
 	}
-	if j == nil {
+	if raw == nil {
 		return nil
 	}
 
-	m, err := convertMappingsJSONToMappings(j)
+	m, err := convertRawMappingsToMappings(raw)
 	if err != nil {
 		return err
 	}
@@ -230,16 +243,16 @@ func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, 
 		return nil, err
 	}
 
-	if err := mergeMappingsFromPreferredFile(m, parent, "mappings.json"); err != nil {
+	if err := mergeMappingsFromPreferredFile(m, parent, "mappings.yaml"); err != nil {
 		return nil, err
 	}
 
 	if isUnixLikePlatform(platform) {
-		if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.json", unixLikePlatformName)); err != nil {
+		if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.yaml", unixLikePlatformName)); err != nil {
 			return nil, err
 		}
 	}
-	if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.json", platform)); err != nil {
+	if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.yaml", platform)); err != nil {
 		return nil, err
 	}
 

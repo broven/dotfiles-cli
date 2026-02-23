@@ -39,16 +39,15 @@ func TestCleanAll(t *testing.T) {
 		}
 		defer os.RemoveAll(config)
 
-		f, err = os.OpenFile(path.Join(config, "mappings.json"), os.O_CREATE|os.O_RDWR, 0644)
+		f, err = os.OpenFile(path.Join(config, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			panic(err)
 		}
 
 		_, err = f.WriteString(`
-		{
-			"_source.conf": "` + linked + `"
-		}
-		`)
+link:
+  _source.conf: "` + linked + `"
+`)
 		if err != nil {
 			panic(err)
 		}

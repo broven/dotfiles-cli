@@ -8,6 +8,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/rhysd/abspath v0.0.0-20200817132137-9532ba017882
 	github.com/rhysd/go-github-selfupdate v1.2.3
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

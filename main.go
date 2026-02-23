@@ -22,7 +22,7 @@ var (
 	linkDryRun    = link.Flag("dry", "Show what happens only").Bool()
 	linkRepo      = link.Arg("repo", "Path to your dotfiles repository.  If omitted, $DOTFILES_REPO_PATH is searched and fallback into the current directory.").String()
 	linkSpecified = link.Arg("files", "Files to link. If you specify no file, all will be linked.").Strings()
-	// TODO link_no_default = link.Flag("no-default", "Link files specified by mappings.json and mappings_*.json")
+	// TODO link_no_default = link.Flag("no-default", "Link files specified by mappings.yaml and mappings_*.yaml")
 
 	list     = cli.Command("list", "Show a list of symbolic link put by this command")
 	listRepo = list.Arg("repo", "Path to your dotfiles repository.  If omitted, $DOTFILES_REPO_PATH is searched and fallback into the current directory.").String()

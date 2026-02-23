@@ -21,7 +21,7 @@ Note: My dotfiles is [here](https://github.com/rhysd/dogfiles)
 2. Change current directory to the directory you want to put a dotfiles repository.
 3. Clone your dotfiles repository with `$ dotfiles clone`.
 4. Enter the repository and run `$ dotfiles link --dry` to check which symlinks will be generated.
-5. Write `.dotfiles/mappings.json` if needed.
+5. Write `.dotfiles/mappings.yaml` if needed.
 6. `$ dotfiles link`
 7. After you no longer need your configuration, remove all links with `$ dotfiles clean`.
 
@@ -101,42 +101,43 @@ It depends on your platform. Please see [source code](src/mappings.go).
 
 ## Symbolic Link Mappings
 
-`dotfiles` command has sensible default mappings from configuration files in dotfiles repository to symbolic links put by `dotfiles link`.  And you can flexibly specify the mappings for your dotfiles manner.  Please create a `.dotfiles` directory and put a `.dotfiles/mappings.json` file in the root of your dotfiles repository.
+`dotfiles` command has sensible default mappings from configuration files in dotfiles repository to symbolic links put by `dotfiles link`.  And you can flexibly specify the mappings for your dotfiles manner.  Please create a `.dotfiles` directory and put a `.dotfiles/mappings.yaml` file in the root of your dotfiles repository.
 
-Below is an example of `mappings.json`.  You can use `~` to represent a home directory.  As key, you can specify a name of file or directory in your dotfiles repository.  They will be linked to the corresponding values as symbolic links.
+Below is an example of `mappings.yaml`.  You can use `~` to represent a home directory.  As key, you can specify a name of file or directory in your dotfiles repository.  They will be linked to the corresponding values as symbolic links.  Note that `link` namespace is required.
 
-```json
-{
-  "gitignore": "~/.global.gitignore",
-  "cabal_config": "~/.cabal/config"
-}
+```yaml
+link:
+  gitignore: ~/.global.gitignore
+  cabal_config: ~/.cabal/config
 ```
 
-In addition, you can define platform specific mappings with below mappings JSON files.
+In addition, you can define platform specific mappings with below mappings YAML files.
 
-- `.dotfiles/mappings_unixlike.json`: Will link the mappings in Linux or macOS.
-- `.dotfiles/mappings_linux.json`: Will link the mappings in Linux.
-- `.dotfiles/mappings_darwin.json`: Will link the mappings in macOS.
-- `.dotfiles/mappings_windows.json`: Will link the mappings in Windows.
+- `.dotfiles/mappings_unixlike.yaml`: Will link the mappings in Linux or macOS.
+- `.dotfiles/mappings_linux.yaml`: Will link the mappings in Linux.
+- `.dotfiles/mappings_darwin.yaml`: Will link the mappings in macOS.
+- `.dotfiles/mappings_windows.yaml`: Will link the mappings in Windows.
 
-Below is an example of `.dotfiles/mappings_darwin.json`.
+Below is an example of `.dotfiles/mappings_darwin.yaml`.
 
-```json
-{
-  "keyremap4macbook.xml": "~/Library/Application Support/Karabiner/private.xml",
-  "mac.vimrc": "~/.mac.vimrc"
-}
+```yaml
+link:
+  keyremap4macbook.xml: ~/Library/Application Support/Karabiner/private.xml
+  mac.vimrc: ~/.mac.vimrc
 ```
 
 Values of the mappings object are basically strings representing destination paths, but they also can be arrays of strings. In the case, multiple symbolic links will be created for the source file.
 
+Note: Keys can usually be written without quotes, but if a key may conflict with YAML syntax (for example it contains `:` or looks like a boolean/number), wrap the key in quotes.
+
 For example, the following configuration will make two symbolic links `~/.vimrc` and `~/.config/nvim/init.vim` for `vimrc` source file.
 
 
-```json
-{
-  "vimrc": ["~/.vimrc", "~/.config/nvim/init.vim"]
-}
+```yaml
+link:
+  vimrc:
+    - ~/.vimrc
+    - ~/.config/nvim/init.vim
 ```
 
 Real world example is [my dotfiles](https://github.com/rhysd/dogfiles/tree/master/.dotfiles).
@@ -144,4 +145,3 @@ Real world example is [my dotfiles](https://github.com/rhysd/dogfiles/tree/maste
 ## License
 
 Licensed under [the MIT license](LICENSE.txt).
-

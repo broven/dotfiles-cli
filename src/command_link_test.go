@@ -19,16 +19,15 @@ func TestLinkAll(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	f, err := os.OpenFile(path.Join(dir, "mappings.json"), os.O_CREATE|os.O_RDWR, 0644)
+	f, err := os.OpenFile(path.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
 	}
 
 	_, err = f.WriteString(`
-	{
-		"_source.conf": "` + distConf + `"
-	}
-	`)
+link:
+  _source.conf: "` + distConf + `"
+`)
 	if err != nil {
 		panic(err)
 	}
@@ -67,7 +66,7 @@ func TestLinkSome(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	f, err := os.OpenFile(path.Join(dir, "mappings.json"), os.O_CREATE|os.O_RDWR, 0644)
+	f, err := os.OpenFile(path.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		os.RemoveAll(dir)
 		panic(err)
@@ -75,11 +74,10 @@ func TestLinkSome(t *testing.T) {
 	defer f.Close()
 
 	_, err = f.WriteString(`
-	{
-		"_source.conf": "` + distConf + `",
-		"_tmp.conf": "/path/to/somewhere"
-	}
-	`)
+link:
+  _source.conf: "` + distConf + `"
+  _tmp.conf: /path/to/somewhere
+`)
 	if err != nil {
 		panic(err)
 	}
