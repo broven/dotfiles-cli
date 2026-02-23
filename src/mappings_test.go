@@ -183,6 +183,66 @@ link:
 	}
 }
 
+func TestGetMappingsPartialLink(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+partial_link:
+  zsh: /tmp/partial_target
+	`)
+	defer os.RemoveAll(testDir)
+
+	zshDir := getcwd().Join(testDir).Join("zsh").String()
+	if err := os.MkdirAll(zshDir, os.ModeDir|os.ModePerm); err != nil {
+		panic(err)
+	}
+	zshrc, err := os.OpenFile(filepath.Join(zshDir, ".zshrc"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	zshrc.Close()
+	zprofile, err := os.OpenFile(filepath.Join(zshDir, ".zprofile"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	zprofile.Close()
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	m, err := GetMappingsForPlatform("unknown", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasOnlyDestination(m, "zsh/.zshrc", "/tmp/partial_target/.zshrc") {
+		t.Errorf("partial_link should expand zsh/.zshrc but got '%s'", m["zsh/.zshrc"])
+	}
+	if !hasOnlyDestination(m, "zsh/.zprofile", "/tmp/partial_target/.zprofile") {
+		t.Errorf("partial_link should expand zsh/.zprofile but got '%s'", m["zsh/.zprofile"])
+	}
+}
+
+func TestGetMappingsPartialLinkMissingSourceDir(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+partial_link:
+  not_found: /tmp/partial_target
+	`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	m, err := GetMappingsForPlatform("unknown", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 0 {
+		t.Fatalf("Missing partial_link source directory should be ignored but got %v", m)
+	}
+}
+
 func TestGetMappingsPreferRepoRootMappings(t *testing.T) {
 	testDir := createTestDir()
 	defer os.RemoveAll(testDir)
@@ -412,7 +472,34 @@ some_file: /path/to/some_file
 	}
 
 	if _, err := GetMappings(p); err == nil {
-		t.Fatalf("Missing link namespace must raise an error")
+		t.Fatalf("Missing link and partial_link namespace must raise an error")
+	}
+}
+
+func TestGetMappingsPartialLinkOnly(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+partial_link:
+  some_dir: /path/to/somewhere
+`)
+	defer os.RemoveAll(testDir)
+
+	someDir := getcwd().Join(testDir).Join("some_dir").String()
+	if err := os.MkdirAll(someDir, os.ModeDir|os.ModePerm); err != nil {
+		panic(err)
+	}
+	someFile, err := os.OpenFile(filepath.Join(someDir, "config"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	someFile.Close()
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	if _, err := GetMappings(p); err != nil {
+		t.Fatalf("partial_link without link should be allowed but got error: %s", err.Error())
 	}
 }
 
