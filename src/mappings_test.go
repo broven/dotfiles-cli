@@ -431,6 +431,27 @@ func TestLinkNormalFile(t *testing.T) {
 	}
 }
 
+func TestLinkSkipsDanglingSymlinkTarget(t *testing.T) {
+	cwd := getcwd()
+	m := mapping("._test_source.conf", "_dangling_dest.conf")
+	f := openFile("._test_source.conf")
+	defer func() {
+		f.Close()
+		os.Remove("._test_source.conf")
+	}()
+
+	createSymlink("._missing_source.conf", "_dangling_dest.conf")
+	defer os.Remove("_dangling_dest.conf")
+
+	if err := m.CreateAllLinks(cwd, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if !isSymlinkTo("_dangling_dest.conf", "._missing_source.conf") {
+		t.Fatalf("Dangling symlink destination should be kept as-is")
+	}
+}
+
 func TestLinkToNonExistingDir(t *testing.T) {
 	cwd := getcwd()
 	m := mapping("._source.conf", "_dist_dir/_dist.conf")

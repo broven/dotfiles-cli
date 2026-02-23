@@ -255,10 +255,12 @@ func link(from, to abspath.AbsPath, dry bool) (bool, error) {
 		return false, nil
 	}
 
-	if _, err := os.Stat(to.String()); err == nil {
+	if _, err := os.Lstat(to.String()); err == nil {
 		// Target already exists. Skipped.
 		fmt.Printf("Exist: '%s' -> '%s'\n", from, to.String())
 		return true, nil
+	} else if !os.IsNotExist(err) {
+		return false, err
 	}
 
 	if err := os.MkdirAll(to.Dir().String(), os.ModeDir|os.ModePerm); err != nil {
