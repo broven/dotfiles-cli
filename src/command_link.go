@@ -6,7 +6,7 @@ func Link(repoInput string, specified []string, dry bool) error {
 		return err
 	}
 
-	m, err := GetMappings(repo.Join(".dotfiles"))
+	m, err := GetMappings(repo)
 	if err != nil {
 		return err
 	}

@@ -181,6 +181,95 @@ func TestGetMappingsMappingsJson(t *testing.T) {
 	}
 }
 
+func TestGetMappingsPreferRepoRootMappings(t *testing.T) {
+	testDir := createTestDir()
+	defer os.RemoveAll(testDir)
+
+	rootFile := getcwd().Join(testDir).Join("mappings.json").String()
+	root, err := os.OpenFile(rootFile, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = root.WriteString(`
+	{
+		"some_file": "/path/from/root"
+	}
+	`)
+	if err != nil {
+		panic(err)
+	}
+	root.Close()
+
+	dotfilesDir := getcwd().Join(testDir).Join(".dotfiles").String()
+	if err := os.MkdirAll(dotfilesDir, os.ModeDir|os.ModePerm); err != nil {
+		panic(err)
+	}
+	dotfilesFile := getcwd().Join(testDir).Join(".dotfiles").Join("mappings.json").String()
+	dot, err := os.OpenFile(dotfilesFile, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = dot.WriteString(`
+	{
+		"some_file": "/path/from/dotfiles"
+	}
+	`)
+	if err != nil {
+		panic(err)
+	}
+	dot.Close()
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	m, err := GetMappingsForPlatform("darwin", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasOnlyDestination(m, "some_file", "/path/from/root") {
+		t.Errorf("mappings.json at repository root should be preferred but got '%s'", m["some_file"])
+	}
+}
+
+func TestGetMappingsFallbackToDotfilesMappings(t *testing.T) {
+	testDir := createTestDir()
+	defer os.RemoveAll(testDir)
+
+	dotfilesDir := getcwd().Join(testDir).Join(".dotfiles").String()
+	if err := os.MkdirAll(dotfilesDir, os.ModeDir|os.ModePerm); err != nil {
+		panic(err)
+	}
+	dotfilesFile := getcwd().Join(testDir).Join(".dotfiles").Join("mappings.json").String()
+	dot, err := os.OpenFile(dotfilesFile, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = dot.WriteString(`
+	{
+		"some_file": "/path/from/dotfiles"
+	}
+	`)
+	if err != nil {
+		panic(err)
+	}
+	dot.Close()
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	m, err := GetMappingsForPlatform("darwin", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasOnlyDestination(m, "some_file", "/path/from/dotfiles") {
+		t.Errorf("mappings.json in .dotfiles should be loaded as fallback but got '%s'", m["some_file"])
+	}
+}
+
 func TestGetMappingsPlatformSpecificMappingsJson(t *testing.T) {
 	testDir := createTestJSON("mappings_darwin.json", `
 	{

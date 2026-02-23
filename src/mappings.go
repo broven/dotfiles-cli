@@ -196,6 +196,24 @@ func mergeMappingsFromFile(dist Mappings, file abspath.AbsPath) error {
 	return nil
 }
 
+func mergeMappingsFromPreferredFile(dist Mappings, parent abspath.AbsPath, name string) error {
+	root := parent.Join(name)
+	if _, err := os.Stat(root.String()); err == nil {
+		return mergeMappingsFromFile(dist, root)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	dotfiles := parent.Join(".dotfiles").Join(name)
+	if _, err := os.Stat(dotfiles.String()); err == nil {
+		return mergeMappingsFromFile(dist, dotfiles)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
 func isUnixLikePlatform(platform string) bool {
 	return platform == "linux" || platform == "darwin"
 }
@@ -212,16 +230,16 @@ func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, 
 		return nil, err
 	}
 
-	if err := mergeMappingsFromFile(m, parent.Join("mappings.json")); err != nil {
+	if err := mergeMappingsFromPreferredFile(m, parent, "mappings.json"); err != nil {
 		return nil, err
 	}
 
 	if isUnixLikePlatform(platform) {
-		if err := mergeMappingsFromFile(m, parent.Join(fmt.Sprintf("mappings_%s.json", unixLikePlatformName))); err != nil {
+		if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.json", unixLikePlatformName)); err != nil {
 			return nil, err
 		}
 	}
-	if err := mergeMappingsFromFile(m, parent.Join(fmt.Sprintf("mappings_%s.json", platform))); err != nil {
+	if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.json", platform)); err != nil {
 		return nil, err
 	}
 

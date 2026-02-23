@@ -6,7 +6,7 @@ func Clean(repoInput string) error {
 		return err
 	}
 
-	m, err := GetMappings(repo.Join(".dotfiles"))
+	m, err := GetMappings(repo)
 	if err != nil {
 		return err
 	}
