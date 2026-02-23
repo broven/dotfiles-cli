@@ -56,16 +56,14 @@ func TestExistingMapping(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	f, err := os.OpenFile(filepath.Join(dir, "mappings.json"), os.O_CREATE|os.O_RDWR, 0644)
+	f, err := os.OpenFile(filepath.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
 	}
 
 	_, err = f.WriteString(`
-	{
-		"_source.conf": "` + distConf + `"
-	}
-	`)
+_source.conf: "` + distConf + `"
+`)
 	if err != nil {
 		panic(err)
 	}
@@ -121,21 +119,22 @@ func TestListInvalidInput(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	f, err := os.OpenFile(filepath.Join(dir, "mappings.json"), os.O_CREATE|os.O_RDWR, 0644)
+	f, err := os.OpenFile(filepath.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
 	}
 
 	_, err = f.WriteString(`
-	{
-		"broken_json":
-	`)
+broken_yaml:
+  - /valid/path
+  - [oops
+`)
 	if err != nil {
 		panic(err)
 	}
 	f.Close()
 
 	if err := List("."); err == nil {
-		t.Errorf("Broken JSON should raise an error on getting mappings.")
+		t.Errorf("Broken YAML should raise an error on getting mappings.")
 	}
 }

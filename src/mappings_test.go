@@ -25,8 +25,9 @@ func createTestDir() string {
 	return dir
 }
 
-func createTestJSON(fname, contents string) string {
+func createTestMappingFile(fname, contents string) string {
 	dir := createTestDir()
+	contents = strings.ReplaceAll(contents, "\t", "  ")
 
 	f, err := os.OpenFile(getcwd().Join(dir, fname).String(), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
@@ -145,8 +146,8 @@ func TestGetMappingsUnknownPlatform(t *testing.T) {
 	}
 }
 
-func TestGetMappingsMappingsJson(t *testing.T) {
-	testDir := createTestJSON("mappings.json", `
+func TestGetMappingsMappingsYAML(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
 	{
 		"some_file": "/path/to/some_file",
 		".vimrc": "/override/path/vimrc",
@@ -171,7 +172,7 @@ func TestGetMappingsMappingsJson(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !hasOnlyDestination(m, "some_file", "/path/to/some_file") {
-		t.Errorf("Mapping value set in mappings.json is wrong: '%s' in Darwin", m["some_file"])
+		t.Errorf("Mapping value set in mappings.yaml is wrong: '%s' in Darwin", m["some_file"])
 	}
 	if !hasOnlyDestination(m, ".vimrc", "/override/path/vimrc") {
 		t.Errorf("Mapping should be overridden but actually '%s' for Darwin platform", m[".vimrc"])
@@ -185,16 +186,14 @@ func TestGetMappingsPreferRepoRootMappings(t *testing.T) {
 	testDir := createTestDir()
 	defer os.RemoveAll(testDir)
 
-	rootFile := getcwd().Join(testDir).Join("mappings.json").String()
+	rootFile := getcwd().Join(testDir).Join("mappings.yaml").String()
 	root, err := os.OpenFile(rootFile, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
 	}
 	_, err = root.WriteString(`
-	{
-		"some_file": "/path/from/root"
-	}
-	`)
+some_file: /path/from/root
+`)
 	if err != nil {
 		panic(err)
 	}
@@ -204,16 +203,14 @@ func TestGetMappingsPreferRepoRootMappings(t *testing.T) {
 	if err := os.MkdirAll(dotfilesDir, os.ModeDir|os.ModePerm); err != nil {
 		panic(err)
 	}
-	dotfilesFile := getcwd().Join(testDir).Join(".dotfiles").Join("mappings.json").String()
+	dotfilesFile := getcwd().Join(testDir).Join(".dotfiles").Join("mappings.yaml").String()
 	dot, err := os.OpenFile(dotfilesFile, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
 	}
 	_, err = dot.WriteString(`
-	{
-		"some_file": "/path/from/dotfiles"
-	}
-	`)
+some_file: /path/from/dotfiles
+`)
 	if err != nil {
 		panic(err)
 	}
@@ -229,7 +226,7 @@ func TestGetMappingsPreferRepoRootMappings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !hasOnlyDestination(m, "some_file", "/path/from/root") {
-		t.Errorf("mappings.json at repository root should be preferred but got '%s'", m["some_file"])
+		t.Errorf("mappings.yaml at repository root should be preferred but got '%s'", m["some_file"])
 	}
 }
 
@@ -241,16 +238,14 @@ func TestGetMappingsFallbackToDotfilesMappings(t *testing.T) {
 	if err := os.MkdirAll(dotfilesDir, os.ModeDir|os.ModePerm); err != nil {
 		panic(err)
 	}
-	dotfilesFile := getcwd().Join(testDir).Join(".dotfiles").Join("mappings.json").String()
+	dotfilesFile := getcwd().Join(testDir).Join(".dotfiles").Join("mappings.yaml").String()
 	dot, err := os.OpenFile(dotfilesFile, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
 	}
 	_, err = dot.WriteString(`
-	{
-		"some_file": "/path/from/dotfiles"
-	}
-	`)
+some_file: /path/from/dotfiles
+`)
 	if err != nil {
 		panic(err)
 	}
@@ -266,12 +261,12 @@ func TestGetMappingsFallbackToDotfilesMappings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !hasOnlyDestination(m, "some_file", "/path/from/dotfiles") {
-		t.Errorf("mappings.json in .dotfiles should be loaded as fallback but got '%s'", m["some_file"])
+		t.Errorf("mappings.yaml in .dotfiles should be loaded as fallback but got '%s'", m["some_file"])
 	}
 }
 
-func TestGetMappingsPlatformSpecificMappingsJson(t *testing.T) {
-	testDir := createTestJSON("mappings_darwin.json", `
+func TestGetMappingsPlatformSpecificMappingsYAML(t *testing.T) {
+	testDir := createTestMappingFile("mappings_darwin.yaml", `
 	{
 		"some_file": "/path/to/some_file",
 		".vimrc": "/override/path/vimrc"
@@ -289,10 +284,10 @@ func TestGetMappingsPlatformSpecificMappingsJson(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !hasOnlyDestination(m, "some_file", "/path/to/some_file") {
-		t.Errorf("Mapping value set in mappings_darwin.json is wrong: '%s' in Darwin", m["some_file"])
+		t.Errorf("Mapping value set in mappings_darwin.yaml is wrong: '%s' in Darwin", m["some_file"])
 	}
 	if !hasOnlyDestination(m, ".vimrc", "/override/path/vimrc") {
-		t.Errorf("Mapping should be overridden by mappings_darwin.json but actually '%s'", m[".vimrc"])
+		t.Errorf("Mapping should be overridden by mappings_darwin.yaml but actually '%s'", m[".vimrc"])
 	}
 
 	m, err = GetMappingsForPlatform("windows", p)
@@ -303,20 +298,20 @@ func TestGetMappingsPlatformSpecificMappingsJson(t *testing.T) {
 		t.Errorf("Different configuration must not be loaded but actually some_file was linked to '%s'", m["some_file"])
 	}
 
-	// Note: Consider '~' prefix in JSON path value
+	// Note: Consider '~' prefix in YAML path value
 	if !strings.HasSuffix(m[".vimrc"][0].String(), defaultMappings["windows"][".vimrc"][0][1:]) {
-		t.Errorf("Mapping should not be overridden by mappings_darwin.json on different platform (Windows) but actually '%s'", m[".vimrc"][0])
+		t.Errorf("Mapping should not be overridden by mappings_darwin.yaml on different platform (Windows) but actually '%s'", m[".vimrc"][0])
 	}
 }
 
-func TestGetMappingsPlatformSpecificMappingsJsonUnix(t *testing.T) {
-	testDir := createTestJSON("mappings_unixlike.json", `
+func TestGetMappingsPlatformSpecificMappingsYAMLUnix(t *testing.T) {
+	testDir := createTestMappingFile("mappings_unixlike.yaml", `
 	{
 		"some_file": "/path/to/some_file",
 		".vimrc": "/hidden/path/vimrc"
 	}
 	`)
-	createTestJSON("mappings_darwin.json", `
+	createTestMappingFile("mappings_darwin.yaml", `
 	{
 		".vimrc": "/override/path/vimrc"
 	}
@@ -333,10 +328,10 @@ func TestGetMappingsPlatformSpecificMappingsJsonUnix(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !hasOnlyDestination(m, "some_file", "/path/to/some_file") {
-		t.Errorf("Mapping value set in mappings_unixlike.json is wrong: '%s' in Darwin", m["some_file"])
+		t.Errorf("Mapping value set in mappings_unixlike.yaml is wrong: '%s' in Darwin", m["some_file"])
 	}
 	if !hasOnlyDestination(m, ".vimrc", "/override/path/vimrc") {
-		t.Errorf("Mapping should be overridden by mappings_darwin.json but actually '%s'", m[".vimrc"])
+		t.Errorf("Mapping should be overridden by mappings_darwin.yaml but actually '%s'", m[".vimrc"])
 	}
 
 	m, err = GetMappingsForPlatform("windows", p)
@@ -347,14 +342,14 @@ func TestGetMappingsPlatformSpecificMappingsJsonUnix(t *testing.T) {
 		t.Errorf("Different configuration must not be loaded but actually some_file was linked to '%s'", m["some_file"])
 	}
 
-	// Note: Consider '~' prefix in JSON path value
+	// Note: Consider '~' prefix in YAML path value
 	if !strings.HasSuffix(m[".vimrc"][0].String(), defaultMappings["windows"][".vimrc"][0][1:]) {
-		t.Errorf("Mapping should not be overridden by mappings_unix.json or mappings_darwin.json on different platform (Windows) but actually '%s'", m[".vimrc"][0])
+		t.Errorf("Mapping should not be overridden by mappings_unixlike.yaml or mappings_darwin.yaml on different platform (Windows) but actually '%s'", m[".vimrc"][0])
 	}
 }
 
-func TestGetMappingsInvalidJson(t *testing.T) {
-	testDir := createTestJSON("mappings.json", `
+func TestGetMappingsInvalidYAML(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
 	{
 		"some_file":
 	`)
@@ -366,12 +361,12 @@ func TestGetMappingsInvalidJson(t *testing.T) {
 	}
 
 	if _, err := GetMappings(p); err == nil {
-		t.Fatalf("Invalid Json configuration must raise a parse error")
+		t.Fatalf("Invalid YAML configuration must raise a parse error")
 	}
 }
 
 func TestGetMappingsEmptyKey(t *testing.T) {
-	testDir := createTestJSON("mappings.json", `
+	testDir := createTestMappingFile("mappings.yaml", `
 	{
 		"": "/path/to/somewhere"
 	}
@@ -389,7 +384,7 @@ func TestGetMappingsEmptyKey(t *testing.T) {
 }
 
 func TestGetMappingsInvalidPathValue(t *testing.T) {
-	testDir := createTestJSON("mappings.json", `
+	testDir := createTestMappingFile("mappings.yaml", `
 	{
 		"some_file": "relative-path"
 	}`)
@@ -749,12 +744,12 @@ func TestActualLinksTwoDestsFromOneSource(t *testing.T) {
 	}
 }
 
-func TestConvertMappingsJSONToMappings(t *testing.T) {
-	json := mappingsJSON{
+func TestConvertRawMappingsToMappings(t *testing.T) {
+	raw := rawMappings{
 		"empty":     []string{},
 		"null_only": []string{""},
 	}
-	m, err := convertMappingsJSONToMappings(json)
+	m, err := convertRawMappingsToMappings(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
