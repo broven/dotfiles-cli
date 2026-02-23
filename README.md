@@ -1,9 +1,9 @@
 `dotfiles` Command
 ==================
-[![CI](https://github.com/rhysd/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/rhysd/dotfiles/actions/workflows/ci.yml)
-[![Coverage](https://codecov.io/gh/rhysd/dotfiles/branch/master/graph/badge.svg)](https://codecov.io/gh/rhysd/dotfiles)
+[![CI](https://github.com/broven/dotfiles-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/broven/dotfiles-cli/actions/workflows/ci.yml)
 
 This repository provides `dotfiles` command to manage your [dotfiles](http://dotfiles.github.io/).  It manages your dotfiles repository and symbolic links to use the configurations.
+This fork is maintained independently and is not intended to be merged back upstream.
 
 This command has below goals:
 
@@ -12,12 +12,10 @@ This command has below goals:
 - **Less dependency**: Only depends on `git` command.
 - **Sensible defaults**: Many sensible default symbolic link mappings are pre-defined.  You need not to specify the mappings for almost all configuration files.
 
-Note: My dotfiles is [here](https://github.com/rhysd/dogfiles)
-
 
 ## Getting Started
 
-1. Download [a released executable](https://github.com/rhysd/dotfiles/releases) and put it in `$PATH` or `$ go install github.com/rhysd/dotfiles`.
+1. Download [a released executable](https://github.com/broven/dotfiles-cli/releases) and put it in `$PATH` (or build locally with `go build`).
 2. Change current directory to the directory you want to put a dotfiles repository.
 3. Clone your dotfiles repository with `$ dotfiles clone`.
 4. Enter the repository and run `$ dotfiles link --dry` to check which symlinks will be generated.
@@ -37,17 +35,17 @@ $ dotfiles {subcommand} [arguments]
 Clone your dotfiles repository from remote.
 
 ```sh
-# Clone git@github.com:rhysd/dotfiles.git into current directory
-$ dotfiles clone rhysd
+# Clone git@github.com:<github-user>/dotfiles.git into current directory
+$ dotfiles clone <github-user>
 
-# Clone https://github.com/rhysd/dotfiles.git into current directory
-$ dotfiles clone rhysd --https
+# Clone https://github.com/<github-user>/dotfiles.git into current directory
+$ dotfiles clone <github-user> --https
 
 # You can explicitly specify the repository name
-$ dotfiles clone rhysd/dogfiles
+$ dotfiles clone <github-user>/<dotfiles-repo>
 
 # You can also use full-path
-$ dotfiles clone git@bitbucket.org:rhysd/dotfiles.git
+$ dotfiles clone git@bitbucket.org:<workspace>/<dotfiles-repo>.git
 $ dotfiles clone https://your.site.com/dotfiles.git
 ```
 
@@ -155,7 +153,7 @@ link:
     - ~/.config/nvim/init.vim
 ```
 
-Real world example is [my dotfiles](https://github.com/rhysd/dogfiles/tree/master/.dotfiles).
+Real world usage: keep your mapping files under `.dotfiles/` in your own dotfiles repository.
 
 ## License
 
