@@ -183,6 +183,73 @@ link:
 	}
 }
 
+func TestGetConfigRelinkDefaultFalse(t *testing.T) {
+	testDir := createTestDir()
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("darwin", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Relink {
+		t.Fatalf("relink should default to false")
+	}
+}
+
+func TestGetConfigRelinkFromMappingsYAML(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+relink: true
+link:
+  some_file: /path/to/some_file
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("unknown", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Relink {
+		t.Fatalf("relink should be true")
+	}
+}
+
+func TestGetConfigRelinkPlatformOverride(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+relink: true
+link:
+  some_file: /path/to/some_file
+`)
+	createTestMappingFile("mappings_darwin.yaml", `
+relink: false
+link:
+  some_file: /path/to/some_file
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("darwin", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Relink {
+		t.Fatalf("relink should be overridden to false by mappings_darwin.yaml")
+	}
+}
+
 func TestGetMappingsPartialLink(t *testing.T) {
 	testDir := createTestMappingFile("mappings.yaml", `
 partial_link:
@@ -607,6 +674,30 @@ func TestLinkSkipsDanglingSymlinkTarget(t *testing.T) {
 
 	if !isSymlinkTo("_dangling_dest.conf", "._missing_source.conf") {
 		t.Fatalf("Dangling symlink destination should be kept as-is")
+	}
+}
+
+func TestLinkRelinkRecreatesExistingSymlinkTarget(t *testing.T) {
+	cwd := getcwd()
+	m := mapping("._test_source.conf", "_dist.conf")
+	f := openFile("._test_source.conf")
+	defer func() {
+		f.Close()
+		os.Remove("._test_source.conf")
+	}()
+
+	openFile("._old_source.conf").Close()
+	defer os.Remove("._old_source.conf")
+
+	createSymlink("._old_source.conf", "_dist.conf")
+	defer os.Remove("_dist.conf")
+
+	if err := m.CreateAllLinksWithRelink(cwd, false, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if !isSymlinkTo("_dist.conf", "._test_source.conf") {
+		t.Fatalf("Destination should be recreated to the expected source")
 	}
 }
 

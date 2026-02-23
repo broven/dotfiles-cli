@@ -329,3 +329,70 @@ homebrew:
 		t.Fatalf("package manager only configuration should not fail but got: %s", err.Error())
 	}
 }
+
+func TestLinkRelinkEnabledRecreatesExistingTarget(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	distConf := path.Join(cwd, "_dist.conf")
+	dir := path.Join(cwd, ".dotfiles")
+	if err := os.MkdirAll(dir, os.ModePerm|os.ModeDir); err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+
+	f, err := os.OpenFile(path.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = f.WriteString(`
+relink: true
+link:
+  _source.conf: "` + distConf + `"
+`)
+	if err != nil {
+		panic(err)
+	}
+	f.Close()
+
+	source := path.Join(cwd, "_source.conf")
+	g, err := os.OpenFile(source, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		g.Close()
+		os.Remove(source)
+	}()
+	_, err = g.WriteString("this file is for test")
+	if err != nil {
+		panic(err)
+	}
+
+	oldSource := path.Join(cwd, "_old_source.conf")
+	old, err := os.OpenFile(oldSource, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	old.Close()
+	defer os.Remove(oldSource)
+
+	if err := os.Symlink(oldSource, distConf); err != nil {
+		panic(err)
+	}
+	defer os.Remove(distConf)
+
+	if err := Link("", nil, false); err != nil {
+		t.Fatal(err)
+	}
+
+	actual, err := os.Readlink(distConf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actual != source {
+		t.Fatalf("Expected relinked destination to point to %s but got %s", source, actual)
+	}
+}

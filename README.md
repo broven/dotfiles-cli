@@ -101,9 +101,13 @@ It depends on your platform. Please see [source code](src/mappings.go).
 
 `dotfiles` command has sensible default mappings from configuration files in dotfiles repository to symbolic links put by `dotfiles link`.  And you can flexibly specify the mappings for your dotfiles manner.  Please create a `.dotfiles` directory and put a `.dotfiles/mappings.yaml` file in the root of your dotfiles repository.
 
-Below is a complete `mappings.yaml` demo.  You can use `~` to represent a home directory.  At least one namespace from `link`, `partial_link`, `npm`, or `homebrew` is required.
+Below is a complete `mappings.yaml` demo.  You can use `~` to represent a home directory.  At least one namespace from `link`, `partial_link`, `npm`, `homebrew`, or `relink` is required.
 
 ```yaml
+# Optional: force recreate links even if destination already exists.
+# default: false
+relink: false
+
 # Symlink mappings: source in repo -> destination on local machine
 link:
   gitignore: ~/.global.gitignore
@@ -140,6 +144,8 @@ homebrew:
     - iterm2
     - visual-studio-code
 ```
+
+When `relink: true` is set, `dotfiles link` removes an existing destination path and recreates the symlink for mapped entries.
 
 `dotfiles link` will install/update configured `npm` and `homebrew` packages after linking files.  If `npm` or `brew` command is not found, it skips that namespace with a notification.
 
