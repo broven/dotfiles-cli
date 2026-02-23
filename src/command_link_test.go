@@ -3,6 +3,7 @@ package dotfiles
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 )
 
@@ -106,6 +107,76 @@ func TestLinkConfigDirDoesNotExist(t *testing.T) {
 	if err := Link("", nil, false); err != nil {
 		if _, ok := err.(*NothingLinkedError); !ok {
 			t.Errorf("Non-existtence of .dotfiles directory does not cause an error: %s", err.Error())
+		}
+	}
+}
+
+func TestLinkAllWithPartialLink(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	dir := path.Join(cwd, ".dotfiles")
+	if err := os.MkdirAll(dir, os.ModePerm|os.ModeDir); err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+
+	f, err := os.OpenFile(path.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = f.WriteString(`
+partial_link:
+  _zsh: "` + path.Join(cwd, "_home") + `"
+`)
+	if err != nil {
+		panic(err)
+	}
+	f.Close()
+
+	if err := os.MkdirAll(path.Join(cwd, "_zsh"), os.ModePerm|os.ModeDir); err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(path.Join(cwd, "_zsh"))
+
+	files := []string{".zshrc", ".zprofile"}
+	for _, name := range files {
+		p := filepath.Join(cwd, "_zsh", name)
+		file, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0644)
+		if err != nil {
+			panic(err)
+		}
+		_, err = file.WriteString("test")
+		if err != nil {
+			file.Close()
+			panic(err)
+		}
+		file.Close()
+	}
+	defer os.RemoveAll(path.Join(cwd, "_home"))
+
+	if err := Link("", nil, false); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range files {
+		dst := filepath.Join(cwd, "_home", name)
+		info, err := os.Lstat(dst)
+		if err != nil {
+			t.Fatalf("Expected %s to be linked: %s", dst, err.Error())
+		}
+		if info.Mode()&os.ModeSymlink != os.ModeSymlink {
+			t.Fatalf("Expected %s to be a symlink", dst)
+		}
+		actual, err := os.Readlink(dst)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := filepath.Join(cwd, "_zsh", name)
+		if actual != expected {
+			t.Fatalf("Expected symlink %s -> %s but got %s", dst, expected, actual)
 		}
 	}
 }
