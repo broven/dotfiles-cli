@@ -476,6 +476,66 @@ some_file: /path/to/some_file
 	}
 }
 
+func TestGetConfigWithPackageManagers(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+npm:
+  - typescript
+  - pnpm
+homebrew:
+  tap:
+    - hashicorp/tap
+  formula:
+    - wget
+  cask:
+    - iterm2
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("unknown", p)
+	if err != nil {
+		t.Fatalf("Package manager only namespaces should be allowed but got: %s", err.Error())
+	}
+
+	if len(cfg.PackageManagers.NPM) != 2 || cfg.PackageManagers.NPM[0] != "typescript" || cfg.PackageManagers.NPM[1] != "pnpm" {
+		t.Fatalf("Unexpected npm packages: %v", cfg.PackageManagers.NPM)
+	}
+	if len(cfg.PackageManagers.Homebrew.Tap) != 1 || cfg.PackageManagers.Homebrew.Tap[0] != "hashicorp/tap" {
+		t.Fatalf("Unexpected homebrew taps: %v", cfg.PackageManagers.Homebrew.Tap)
+	}
+	if len(cfg.PackageManagers.Homebrew.Formula) != 1 || cfg.PackageManagers.Homebrew.Formula[0] != "wget" {
+		t.Fatalf("Unexpected homebrew formula packages: %v", cfg.PackageManagers.Homebrew.Formula)
+	}
+	if len(cfg.PackageManagers.Homebrew.Cask) != 1 || cfg.PackageManagers.Homebrew.Cask[0] != "iterm2" {
+		t.Fatalf("Unexpected homebrew cask packages: %v", cfg.PackageManagers.Homebrew.Cask)
+	}
+}
+
+func TestGetConfigWithHomebrewFormulaShorthand(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+homebrew:
+  - ripgrep
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("unknown", p)
+	if err != nil {
+		t.Fatalf("homebrew formula shorthand should be allowed but got: %s", err.Error())
+	}
+	if len(cfg.PackageManagers.Homebrew.Formula) != 1 || cfg.PackageManagers.Homebrew.Formula[0] != "ripgrep" {
+		t.Fatalf("Unexpected homebrew formula packages: %v", cfg.PackageManagers.Homebrew.Formula)
+	}
+}
+
 func TestGetMappingsPartialLinkOnly(t *testing.T) {
 	testDir := createTestMappingFile("mappings.yaml", `
 partial_link:

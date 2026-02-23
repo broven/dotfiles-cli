@@ -1,7 +1,9 @@
 package dotfiles
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"testing"
@@ -208,5 +210,122 @@ func TestLinkSpecifiedRepoDoesNotExist(t *testing.T) {
 
 	if err := Link("_dummy_file", nil, false); err == nil {
 		t.Errorf("Should make an error when repository is actually a file")
+	}
+}
+
+func TestLinkSkipsPackageManagersWhenCommandsMissing(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	restoreLookPath := lookPath
+	restoreCommandRunner := commandRunner
+	defer func() {
+		lookPath = restoreLookPath
+		commandRunner = restoreCommandRunner
+	}()
+
+	lookPath = func(file string) (string, error) {
+		if file == "npm" || file == "brew" {
+			return "", fmt.Errorf("not found: %s", file)
+		}
+		return restoreLookPath(file)
+	}
+	commandRunner = func(name string, args ...string) *exec.Cmd {
+		panic("commandRunner must not be called when commands are missing")
+	}
+
+	distConf := path.Join(cwd, "_dist.conf")
+	dir := path.Join(cwd, ".dotfiles")
+	if err := os.MkdirAll(dir, os.ModePerm|os.ModeDir); err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+
+	f, err := os.OpenFile(path.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = f.WriteString(`
+link:
+  _source.conf: "` + distConf + `"
+npm:
+  - typescript
+homebrew:
+  formula:
+    - wget
+`)
+	if err != nil {
+		panic(err)
+	}
+	f.Close()
+
+	source := path.Join(cwd, "_source.conf")
+	g, err := os.OpenFile(source, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		g.Close()
+		os.Remove(source)
+	}()
+	_, err = g.WriteString("this file is for test")
+	if err != nil {
+		panic(err)
+	}
+
+	if err := Link("", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove("_dist.conf")
+}
+
+func TestLinkPackageManagersOnly(t *testing.T) {
+	restoreLookPath := lookPath
+	restoreCommandRunner := commandRunner
+	defer func() {
+		lookPath = restoreLookPath
+		commandRunner = restoreCommandRunner
+	}()
+
+	lookPath = func(file string) (string, error) {
+		if file == "npm" || file == "brew" {
+			return "", fmt.Errorf("not found: %s", file)
+		}
+		return restoreLookPath(file)
+	}
+	commandRunner = func(name string, args ...string) *exec.Cmd {
+		panic("commandRunner must not be called when commands are missing")
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	dir := path.Join(cwd, ".dotfiles")
+	if err := os.MkdirAll(dir, os.ModePerm|os.ModeDir); err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+
+	f, err := os.OpenFile(path.Join(dir, "mappings.yaml"), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = f.WriteString(`
+npm:
+  - typescript
+homebrew:
+  - ripgrep
+`)
+	if err != nil {
+		panic(err)
+	}
+	f.Close()
+
+	if err := Link("", nil, false); err != nil {
+		t.Fatalf("package manager only configuration should not fail but got: %s", err.Error())
 	}
 }
