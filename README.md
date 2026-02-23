@@ -103,11 +103,12 @@ It depends on your platform. Please see [source code](src/mappings.go).
 
 `dotfiles` command has sensible default mappings from configuration files in dotfiles repository to symbolic links put by `dotfiles link`.  And you can flexibly specify the mappings for your dotfiles manner.  Please create a `.dotfiles` directory and put a `.dotfiles/mappings.yaml` file in the root of your dotfiles repository.
 
-Below is an example of `mappings.yaml`.  You can use `~` to represent a home directory.  As key, you can specify a name of file or directory in your dotfiles repository.  They will be linked to the corresponding values as symbolic links.
+Below is an example of `mappings.yaml`.  You can use `~` to represent a home directory.  As key, you can specify a name of file or directory in your dotfiles repository.  They will be linked to the corresponding values as symbolic links.  Note that `link` namespace is required.
 
 ```yaml
-gitignore: ~/.global.gitignore
-cabal_config: ~/.cabal/config
+link:
+  gitignore: ~/.global.gitignore
+  cabal_config: ~/.cabal/config
 ```
 
 In addition, you can define platform specific mappings with below mappings YAML files.
@@ -120,8 +121,9 @@ In addition, you can define platform specific mappings with below mappings YAML 
 Below is an example of `.dotfiles/mappings_darwin.yaml`.
 
 ```yaml
-keyremap4macbook.xml: ~/Library/Application Support/Karabiner/private.xml
-mac.vimrc: ~/.mac.vimrc
+link:
+  keyremap4macbook.xml: ~/Library/Application Support/Karabiner/private.xml
+  mac.vimrc: ~/.mac.vimrc
 ```
 
 Values of the mappings object are basically strings representing destination paths, but they also can be arrays of strings. In the case, multiple symbolic links will be created for the source file.
@@ -130,9 +132,10 @@ For example, the following configuration will make two symbolic links `~/.vimrc`
 
 
 ```yaml
-vimrc:
-  - ~/.vimrc
-  - ~/.config/nvim/init.vim
+link:
+  vimrc:
+    - ~/.vimrc
+    - ~/.config/nvim/init.vim
 ```
 
 Real world example is [my dotfiles](https://github.com/rhysd/dogfiles/tree/master/.dotfiles).

@@ -45,7 +45,8 @@ func TestCleanAll(t *testing.T) {
 		}
 
 		_, err = f.WriteString(`
-_source.conf: "` + linked + `"
+link:
+  _source.conf: "` + linked + `"
 `)
 		if err != nil {
 			panic(err)

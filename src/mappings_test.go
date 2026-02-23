@@ -148,12 +148,13 @@ func TestGetMappingsUnknownPlatform(t *testing.T) {
 
 func TestGetMappingsMappingsYAML(t *testing.T) {
 	testDir := createTestMappingFile("mappings.yaml", `
-	{
-		"some_file": "/path/to/some_file",
-		".vimrc": "/override/path/vimrc",
-		".conf": "~/path/in/home",
-		"multi_dest": ["/dest1", "/dest2"]
-	}
+link:
+  some_file: /path/to/some_file
+  .vimrc: /override/path/vimrc
+  .conf: ~/path/in/home
+  multi_dest:
+    - /dest1
+    - /dest2
 	`)
 	defer os.RemoveAll(testDir)
 
@@ -192,7 +193,8 @@ func TestGetMappingsPreferRepoRootMappings(t *testing.T) {
 		panic(err)
 	}
 	_, err = root.WriteString(`
-some_file: /path/from/root
+link:
+  some_file: /path/from/root
 `)
 	if err != nil {
 		panic(err)
@@ -209,7 +211,8 @@ some_file: /path/from/root
 		panic(err)
 	}
 	_, err = dot.WriteString(`
-some_file: /path/from/dotfiles
+link:
+  some_file: /path/from/dotfiles
 `)
 	if err != nil {
 		panic(err)
@@ -244,7 +247,8 @@ func TestGetMappingsFallbackToDotfilesMappings(t *testing.T) {
 		panic(err)
 	}
 	_, err = dot.WriteString(`
-some_file: /path/from/dotfiles
+link:
+  some_file: /path/from/dotfiles
 `)
 	if err != nil {
 		panic(err)
@@ -267,10 +271,9 @@ some_file: /path/from/dotfiles
 
 func TestGetMappingsPlatformSpecificMappingsYAML(t *testing.T) {
 	testDir := createTestMappingFile("mappings_darwin.yaml", `
-	{
-		"some_file": "/path/to/some_file",
-		".vimrc": "/override/path/vimrc"
-	}
+link:
+  some_file: /path/to/some_file
+  .vimrc: /override/path/vimrc
 	`)
 	defer os.RemoveAll(testDir)
 
@@ -306,15 +309,13 @@ func TestGetMappingsPlatformSpecificMappingsYAML(t *testing.T) {
 
 func TestGetMappingsPlatformSpecificMappingsYAMLUnix(t *testing.T) {
 	testDir := createTestMappingFile("mappings_unixlike.yaml", `
-	{
-		"some_file": "/path/to/some_file",
-		".vimrc": "/hidden/path/vimrc"
-	}
+link:
+  some_file: /path/to/some_file
+  .vimrc: /hidden/path/vimrc
 	`)
 	createTestMappingFile("mappings_darwin.yaml", `
-	{
-		".vimrc": "/override/path/vimrc"
-	}
+link:
+  .vimrc: /override/path/vimrc
 	`)
 	defer os.RemoveAll(testDir)
 
@@ -350,8 +351,8 @@ func TestGetMappingsPlatformSpecificMappingsYAMLUnix(t *testing.T) {
 
 func TestGetMappingsInvalidYAML(t *testing.T) {
 	testDir := createTestMappingFile("mappings.yaml", `
-	{
-		"some_file":
+link:
+  some_file: [oops
 	`)
 	defer os.RemoveAll(testDir)
 
@@ -367,9 +368,8 @@ func TestGetMappingsInvalidYAML(t *testing.T) {
 
 func TestGetMappingsEmptyKey(t *testing.T) {
 	testDir := createTestMappingFile("mappings.yaml", `
-	{
-		"": "/path/to/somewhere"
-	}
+link:
+  "": /path/to/somewhere
 	`)
 	defer os.RemoveAll(testDir)
 
@@ -385,9 +385,9 @@ func TestGetMappingsEmptyKey(t *testing.T) {
 
 func TestGetMappingsInvalidPathValue(t *testing.T) {
 	testDir := createTestMappingFile("mappings.yaml", `
-	{
-		"some_file": "relative-path"
-	}`)
+link:
+  some_file: relative-path
+`)
 	defer os.RemoveAll(testDir)
 
 	p, err := abspath.ExpandFrom(testDir)
@@ -397,6 +397,22 @@ func TestGetMappingsInvalidPathValue(t *testing.T) {
 
 	if _, err := GetMappings(p); err == nil {
 		t.Fatalf("Relative path must be checked")
+	}
+}
+
+func TestGetMappingsWithoutLinkNamespace(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+some_file: /path/to/some_file
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	if _, err := GetMappings(p); err == nil {
+		t.Fatalf("Missing link namespace must raise an error")
 	}
 }
 

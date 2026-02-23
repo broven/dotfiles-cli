@@ -62,7 +62,8 @@ func TestExistingMapping(t *testing.T) {
 	}
 
 	_, err = f.WriteString(`
-_source.conf: "` + distConf + `"
+link:
+  _source.conf: "` + distConf + `"
 `)
 	if err != nil {
 		panic(err)

@@ -113,6 +113,19 @@ func parseMappingsYAML(file abspath.AbsPath) (rawMappings, error) {
 		return nil, err
 	}
 
+	linkMappings, ok := m["link"]
+	if !ok {
+		return nil, fmt.Errorf("'link' section in mappings is required")
+	}
+	switch section := linkMappings.(type) {
+	case map[string]interface{}:
+		return parseRawMappings(section)
+	default:
+		return nil, fmt.Errorf("'link' section in mappings must be an object")
+	}
+}
+
+func parseRawMappings(m map[string]interface{}) (rawMappings, error) {
 	maps := make(rawMappings, len(m))
 	for k, v := range m {
 		switch v := v.(type) {

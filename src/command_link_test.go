@@ -25,7 +25,8 @@ func TestLinkAll(t *testing.T) {
 	}
 
 	_, err = f.WriteString(`
-_source.conf: "` + distConf + `"
+link:
+  _source.conf: "` + distConf + `"
 `)
 	if err != nil {
 		panic(err)
@@ -73,8 +74,9 @@ func TestLinkSome(t *testing.T) {
 	defer f.Close()
 
 	_, err = f.WriteString(`
-_source.conf: "` + distConf + `"
-_tmp.conf: /path/to/somewhere
+link:
+  _source.conf: "` + distConf + `"
+  _tmp.conf: /path/to/somewhere
 `)
 	if err != nil {
 		panic(err)
