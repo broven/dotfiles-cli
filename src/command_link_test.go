@@ -1,7 +1,6 @@
 package dotfiles
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -213,7 +212,7 @@ func TestLinkSpecifiedRepoDoesNotExist(t *testing.T) {
 	}
 }
 
-func TestLinkSkipsPackageManagersWhenCommandsMissing(t *testing.T) {
+func TestLinkIgnoresPackageManagers(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -227,13 +226,10 @@ func TestLinkSkipsPackageManagersWhenCommandsMissing(t *testing.T) {
 	}()
 
 	lookPath = func(file string) (string, error) {
-		if file == "npm" || file == "brew" {
-			return "", fmt.Errorf("not found: %s", file)
-		}
-		return restoreLookPath(file)
+		panic("lookPath must not be called from Link")
 	}
 	commandRunner = func(name string, args ...string) *exec.Cmd {
-		panic("commandRunner must not be called when commands are missing")
+		panic("commandRunner must not be called from Link")
 	}
 
 	distConf := path.Join(cwd, "_dist.conf")
@@ -282,23 +278,6 @@ homebrew:
 }
 
 func TestLinkPackageManagersOnly(t *testing.T) {
-	restoreLookPath := lookPath
-	restoreCommandRunner := commandRunner
-	defer func() {
-		lookPath = restoreLookPath
-		commandRunner = restoreCommandRunner
-	}()
-
-	lookPath = func(file string) (string, error) {
-		if file == "npm" || file == "brew" {
-			return "", fmt.Errorf("not found: %s", file)
-		}
-		return restoreLookPath(file)
-	}
-	commandRunner = func(name string, args ...string) *exec.Cmd {
-		panic("commandRunner must not be called when commands are missing")
-	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -325,8 +304,10 @@ homebrew:
 	}
 	f.Close()
 
-	if err := Link("", nil, false); err != nil {
-		t.Fatalf("package manager only configuration should not fail but got: %s", err.Error())
+	if err := Link("", nil, false); err == nil {
+		t.Fatalf("link with package manager only configuration must fail due to nothing linked")
+	} else if _, ok := err.(*NothingLinkedError); !ok {
+		t.Fatalf("expected NothingLinkedError but got: %s", err.Error())
 	}
 }
 

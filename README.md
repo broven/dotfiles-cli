@@ -8,8 +8,8 @@ This fork is maintained independently and is not intended to be merged back upst
 This command has below goals:
 
 - **One binary executable**: If you want to set configuration files in a remote server, all you have to do is sending a binary to the remote.
-- **Do one thing and do it well**: This command manages only a dotfiles repository.  Does not handle any other dependencies.  If you want full-setup including dependencies, you should use more suitable tool such as [Ansible](https://www.ansible.com/).  And then use `dotfiles` command from it.
-- **Less dependency**: Only depends on `git` command.
+- **Do one thing and do it well**: This command manages your dotfiles repository and related setup tasks defined in mappings.  If you want a broader provisioning workflow, you should use a tool such as [Ansible](https://www.ansible.com/) and call `dotfiles` from it.
+- **Less dependency**: Depends on `git` command (and optionally `npm`/`brew` only when those namespaces are configured).
 - **Sensible defaults**: Many sensible default symbolic link mappings are pre-defined.  You need not to specify the mappings for almost all configuration files.
 
 
@@ -79,7 +79,11 @@ $ dotfiles clean
 
 ### `update` subcommand
 
-`git pull` your dotfiles repository from anywhere.
+Run update in two phases from anywhere:
+1. Git phase: check local changes and run `git pull` only when clean.
+2. Package phase: sync configured `npm` and `homebrew` namespaces.
+
+If local changes exist, git pull is skipped with a message. Package sync still runs.
 
 ```sh
 $ dotfiles update
@@ -147,7 +151,7 @@ homebrew:
 
 When `relink: true` is set, `dotfiles link` removes an existing destination path and recreates the symlink for mapped entries.
 
-`dotfiles link` will install/update configured `npm` and `homebrew` packages after linking files.  If `npm` or `brew` command is not found, it skips that namespace with a notification.
+Configured `npm` and `homebrew` namespaces are installed/updated by `dotfiles update`.  If `npm` or `brew` command is not found, it skips that namespace with a notification.
 
 `homebrew` also supports a shorthand list.  This is treated as `formula` packages:
 

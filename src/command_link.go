@@ -23,14 +23,5 @@ func Link(repoInput string, specified []string, dry bool) error {
 		linkErr = m.CreateSomeLinksWithRelink(specified, repo, dry, relink)
 	}
 
-	managed, err := syncPackageManagers(cfg.PackageManagers, dry)
-	if err != nil {
-		return err
-	}
-
-	if _, ok := linkErr.(*NothingLinkedError); ok && managed {
-		return nil
-	}
-
 	return linkErr
 }
