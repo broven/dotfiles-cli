@@ -692,7 +692,7 @@ func TestLinkRelinkRecreatesExistingSymlinkTarget(t *testing.T) {
 	createSymlink("._old_source.conf", "_dist.conf")
 	defer os.Remove("_dist.conf")
 
-	if err := m.CreateAllLinksWithRelink(cwd, false, true); err != nil {
+	if err := m.CreateAllLinksWithRelink(cwd, false, true, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1042,5 +1042,162 @@ func TestLinkOutsideDir(t *testing.T) {
 	err = m.CreateAllLinks(d, false)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestParseObjectMappingWithRequireTarget(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+link:
+  simple_file: /path/to/simple
+  obj_file:
+    path: /path/to/target
+    require_target: true
+  obj_multi:
+    path:
+      - /path/to/target1
+      - /path/to/target2
+    require_target: true
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("unknown", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !hasOnlyDestination(cfg.Mappings, "simple_file", "/path/to/simple") {
+		t.Errorf("simple_file mapping incorrect: %v", cfg.Mappings["simple_file"])
+	}
+
+	if !hasOnlyDestination(cfg.Mappings, "obj_file", "/path/to/target") {
+		t.Errorf("obj_file mapping incorrect: %v", cfg.Mappings["obj_file"])
+	}
+
+	if len(cfg.Mappings["obj_multi"]) != 2 {
+		t.Fatalf("obj_multi should have 2 paths, got %d", len(cfg.Mappings["obj_multi"]))
+	}
+
+	if !cfg.RequireTarget["obj_file"] {
+		t.Errorf("obj_file should have require_target=true")
+	}
+	if !cfg.RequireTarget["obj_multi"] {
+		t.Errorf("obj_multi should have require_target=true")
+	}
+	if cfg.RequireTarget["simple_file"] {
+		t.Errorf("simple_file should not have require_target")
+	}
+}
+
+func TestLinkRequireTargetSkipsWhenParentMissing(t *testing.T) {
+	cwd := getcwd()
+	m := mapping("._source.conf", "_nonexistent_dir/_dist.conf")
+	f := openFile("._source.conf")
+	defer func() {
+		f.Close()
+		os.Remove("._source.conf")
+	}()
+
+	reqTarget := map[string]bool{"._source.conf": true}
+	err := m.CreateAllLinksWithRelink(cwd, false, false, reqTarget)
+	// Should get NothingLinkedError because the link was skipped
+	if _, ok := err.(*NothingLinkedError); !ok {
+		t.Fatalf("Expected NothingLinkedError when parent dir missing with require_target, got: %v", err)
+	}
+
+	if _, err := os.Lstat(cwd.Join("_nonexistent_dir").String()); !os.IsNotExist(err) {
+		t.Fatalf("Parent directory should not have been created")
+		os.RemoveAll("_nonexistent_dir")
+	}
+}
+
+func TestLinkRequireTargetLinksWhenParentExists(t *testing.T) {
+	cwd := getcwd()
+	if err := os.MkdirAll("_existing_dir", os.ModeDir|os.ModePerm); err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll("_existing_dir")
+
+	m := mapping("._source.conf", "_existing_dir/_dist.conf")
+	f := openFile("._source.conf")
+	defer func() {
+		f.Close()
+		os.Remove("._source.conf")
+	}()
+
+	reqTarget := map[string]bool{"._source.conf": true}
+	err := m.CreateAllLinksWithRelink(cwd, false, false, reqTarget)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !isSymlinkTo("_existing_dir/_dist.conf", "._source.conf") {
+		t.Fatalf("Symbolic link not found when parent dir exists with require_target")
+	}
+}
+
+func TestRequireTargetPlatformOverrideClearsFalse(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+link:
+  foo:
+    path: /path/to/foo
+    require_target: true
+  bar:
+    path: /path/to/bar
+    require_target: true
+`)
+	createTestMappingFile("mappings_darwin.yaml", `
+link:
+  foo:
+    path: /path/to/foo
+    require_target: false
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("darwin", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.RequireTarget["foo"] {
+		t.Errorf("foo require_target should be overridden to false by mappings_darwin.yaml")
+	}
+	if !cfg.RequireTarget["bar"] {
+		t.Errorf("bar require_target should remain true (not mentioned in platform file)")
+	}
+}
+
+func TestParseObjectMappingWithoutRequireTarget(t *testing.T) {
+	testDir := createTestMappingFile("mappings.yaml", `
+link:
+  obj_file:
+    path: /path/to/target
+`)
+	defer os.RemoveAll(testDir)
+
+	p, err := abspath.ExpandFrom(testDir)
+	if err != nil {
+		panic(err)
+	}
+
+	cfg, err := GetConfigForPlatform("unknown", p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !hasOnlyDestination(cfg.Mappings, "obj_file", "/path/to/target") {
+		t.Errorf("obj_file mapping incorrect: %v", cfg.Mappings["obj_file"])
+	}
+	if cfg.RequireTarget["obj_file"] {
+		t.Errorf("obj_file should not have require_target when not specified")
 	}
 }
