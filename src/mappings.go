@@ -44,16 +44,18 @@ type PackageManagers struct {
 
 type Config struct {
 	Mappings        Mappings
+	RequireTarget   map[string]bool
 	PackageManagers PackageManagers
 	Relink          bool
 }
 
 type parsedMappingsYAML struct {
-	link        rawMappings
-	partialLink rawPartialMappings
-	npm         []string
-	homebrew    HomebrewPackages
-	relink      *bool
+	link          rawMappings
+	requireTarget map[string]bool
+	partialLink   rawPartialMappings
+	npm           []string
+	homebrew      HomebrewPackages
+	relink        *bool
 }
 
 var defaultMappings = map[string]rawMappings{
@@ -146,11 +148,12 @@ func parseMappingsYAML(file abspath.AbsPath) (*parsedMappingsYAML, error) {
 		hasNamespace = true
 		switch section := linkMappings.(type) {
 		case map[string]interface{}:
-			raw, err := parseRawMappings(section)
+			raw, reqTarget, err := parseRawMappings(section)
 			if err != nil {
 				return nil, err
 			}
 			ret.link = raw
+			ret.requireTarget = reqTarget
 		default:
 			return nil, fmt.Errorf("'link' section in mappings must be an object")
 		}
@@ -216,8 +219,9 @@ func parseMappingsYAML(file abspath.AbsPath) (*parsedMappingsYAML, error) {
 	return ret, nil
 }
 
-func parseRawMappings(m map[string]interface{}) (rawMappings, error) {
+func parseRawMappings(m map[string]interface{}) (rawMappings, map[string]bool, error) {
 	maps := make(rawMappings, len(m))
+	reqTarget := map[string]bool{}
 	for k, v := range m {
 		switch v := v.(type) {
 		case string:
@@ -227,15 +231,57 @@ func parseRawMappings(m map[string]interface{}) (rawMappings, error) {
 			for _, iface := range v {
 				s, ok := iface.(string)
 				if !ok {
-					return nil, fmt.Errorf("value of mappings object must be string or string[]: %v", v)
+					return nil, nil, fmt.Errorf("value of mappings object must be string or string[]: %v", v)
 				}
 				vs = append(vs, s)
 			}
 			maps[k] = vs
+		case map[string]interface{}:
+			paths, rt, err := parseObjectMapping(v)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid object mapping for '%s': %w", k, err)
+			}
+			maps[k] = paths
+			reqTarget[k] = rt
 		}
 	}
 
-	return maps, nil
+	return maps, reqTarget, nil
+}
+
+func parseObjectMapping(m map[string]interface{}) ([]string, bool, error) {
+	pathRaw, ok := m["path"]
+	if !ok {
+		return nil, false, fmt.Errorf("'path' is required in object mapping")
+	}
+
+	var paths []string
+	switch p := pathRaw.(type) {
+	case string:
+		paths = []string{p}
+	case []interface{}:
+		paths = make([]string, 0, len(p))
+		for _, iface := range p {
+			s, ok := iface.(string)
+			if !ok {
+				return nil, false, fmt.Errorf("'path' values must be strings: %v", p)
+			}
+			paths = append(paths, s)
+		}
+	default:
+		return nil, false, fmt.Errorf("'path' must be a string or string[]: %v", pathRaw)
+	}
+
+	requireTarget := false
+	if rt, ok := m["require_target"]; ok {
+		b, ok := rt.(bool)
+		if !ok {
+			return nil, false, fmt.Errorf("'require_target' must be a boolean: %v", rt)
+		}
+		requireTarget = b
+	}
+
+	return paths, requireTarget, nil
 }
 
 func parseRawPartialMappings(m map[string]interface{}) (rawPartialMappings, error) {
@@ -350,7 +396,7 @@ func mergeMappingsFromDefault(dist Mappings, platform string) error {
 	return nil
 }
 
-func mergeMappingsFromFile(dist Mappings, file abspath.AbsPath) error {
+func mergeMappingsFromFile(dist Mappings, reqTarget map[string]bool, file abspath.AbsPath) error {
 	parsed, err := parseMappingsYAML(file)
 	if err != nil {
 		return err
@@ -366,6 +412,9 @@ func mergeMappingsFromFile(dist Mappings, file abspath.AbsPath) error {
 
 	for k, v := range m {
 		dist[k] = v
+	}
+	for k, v := range parsed.requireTarget {
+		reqTarget[k] = v
 	}
 
 	return nil
@@ -432,17 +481,17 @@ func mergeRelinkFromFile(current bool, file abspath.AbsPath) (bool, error) {
 	return *parsed.relink, nil
 }
 
-func mergeMappingsFromPreferredFile(dist Mappings, parent abspath.AbsPath, name string) error {
+func mergeMappingsFromPreferredFile(dist Mappings, reqTarget map[string]bool, parent abspath.AbsPath, name string) error {
 	root := parent.Join(name)
 	if _, err := os.Stat(root.String()); err == nil {
-		return mergeMappingsFromFile(dist, root)
+		return mergeMappingsFromFile(dist, reqTarget, root)
 	} else if !os.IsNotExist(err) {
 		return err
 	}
 
 	dotfiles := parent.Join(".dotfiles").Join(name)
 	if _, err := os.Stat(dotfiles.String()); err == nil {
-		return mergeMappingsFromFile(dist, dotfiles)
+		return mergeMappingsFromFile(dist, reqTarget, dotfiles)
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -510,6 +559,7 @@ func isUnixLikePlatform(platform string) bool {
 
 func GetConfigForPlatform(platform string, parent abspath.AbsPath) (*Config, error) {
 	m := Mappings{}
+	reqTarget := map[string]bool{}
 	partial := rawPartialMappings{}
 	pm := PackageManagers{}
 	relink := false
@@ -523,7 +573,7 @@ func GetConfigForPlatform(platform string, parent abspath.AbsPath) (*Config, err
 		return nil, err
 	}
 
-	if err := mergeMappingsFromPreferredFile(m, parent, "mappings.yaml"); err != nil {
+	if err := mergeMappingsFromPreferredFile(m, reqTarget, parent, "mappings.yaml"); err != nil {
 		return nil, err
 	}
 	if err := mergePartialMappingsFromPreferredFile(partial, parent, "mappings.yaml"); err != nil {
@@ -538,7 +588,7 @@ func GetConfigForPlatform(platform string, parent abspath.AbsPath) (*Config, err
 	}
 
 	if isUnixLikePlatform(platform) {
-		if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.yaml", unixLikePlatformName)); err != nil {
+		if err := mergeMappingsFromPreferredFile(m, reqTarget, parent, fmt.Sprintf("mappings_%s.yaml", unixLikePlatformName)); err != nil {
 			return nil, err
 		}
 		if err := mergePartialMappingsFromPreferredFile(partial, parent, fmt.Sprintf("mappings_%s.yaml", unixLikePlatformName)); err != nil {
@@ -552,7 +602,7 @@ func GetConfigForPlatform(platform string, parent abspath.AbsPath) (*Config, err
 			return nil, err
 		}
 	}
-	if err := mergeMappingsFromPreferredFile(m, parent, fmt.Sprintf("mappings_%s.yaml", platform)); err != nil {
+	if err := mergeMappingsFromPreferredFile(m, reqTarget, parent, fmt.Sprintf("mappings_%s.yaml", platform)); err != nil {
 		return nil, err
 	}
 	if err := mergePartialMappingsFromPreferredFile(partial, parent, fmt.Sprintf("mappings_%s.yaml", platform)); err != nil {
@@ -578,7 +628,7 @@ func GetConfigForPlatform(platform string, parent abspath.AbsPath) (*Config, err
 		m[k] = v
 	}
 
-	return &Config{Mappings: m, PackageManagers: pm, Relink: relink}, nil
+	return &Config{Mappings: m, RequireTarget: reqTarget, PackageManagers: pm, Relink: relink}, nil
 }
 
 func GetMappingsForPlatform(platform string, parent abspath.AbsPath) (Mappings, error) {
@@ -628,9 +678,18 @@ func GetConfig(configDir abspath.AbsPath) (*Config, error) {
 	return GetConfigForPlatform(runtime.GOOS, configDir)
 }
 
-func link(from, to abspath.AbsPath, dry bool, relink bool) (bool, error) {
+func link(from, to abspath.AbsPath, dry bool, relink bool, requireTarget bool) (bool, error) {
 	if _, err := os.Stat(from.String()); err != nil {
 		return false, nil
+	}
+
+	if requireTarget {
+		if _, err := os.Stat(to.Dir().String()); os.IsNotExist(err) {
+			color.Yellow("Skip (target not found): '%s' -> '%s'\n", from, to.String())
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
 	}
 
 	if _, err := os.Lstat(to.String()); err == nil {
@@ -669,15 +728,16 @@ func link(from, to abspath.AbsPath, dry bool, relink bool) (bool, error) {
 }
 
 func (maps Mappings) CreateAllLinks(dir abspath.AbsPath, dry bool) error {
-	return maps.CreateAllLinksWithRelink(dir, dry, false)
+	return maps.CreateAllLinksWithRelink(dir, dry, false, nil)
 }
 
-func (maps Mappings) CreateAllLinksWithRelink(dir abspath.AbsPath, dry bool, relink bool) error {
+func (maps Mappings) CreateAllLinksWithRelink(dir abspath.AbsPath, dry bool, relink bool, requireTarget map[string]bool) error {
 	created := false
 	for f, tos := range maps {
 		from := dir.Join(filepath.FromSlash(f))
+		rt := requireTarget[f]
 		for _, to := range tos {
-			linked, err := link(from, to, dry, relink)
+			linked, err := link(from, to, dry, relink, rt)
 			if err != nil {
 				return err
 			}
@@ -695,16 +755,17 @@ func (maps Mappings) CreateAllLinksWithRelink(dir abspath.AbsPath, dry bool, rel
 }
 
 func (maps Mappings) CreateSomeLinks(specified []string, dir abspath.AbsPath, dry bool) error {
-	return maps.CreateSomeLinksWithRelink(specified, dir, dry, false)
+	return maps.CreateSomeLinksWithRelink(specified, dir, dry, false, nil)
 }
 
-func (maps Mappings) CreateSomeLinksWithRelink(specified []string, dir abspath.AbsPath, dry bool, relink bool) error {
+func (maps Mappings) CreateSomeLinksWithRelink(specified []string, dir abspath.AbsPath, dry bool, relink bool, requireTarget map[string]bool) error {
 	created := false
 	for _, f := range specified {
 		if tos, ok := maps[f]; ok {
 			from := dir.Join(filepath.FromSlash(f))
+			rt := requireTarget[f]
 			for _, to := range tos {
-				linked, err := link(from, to, dry, relink)
+				linked, err := link(from, to, dry, relink, rt)
 				if err != nil {
 					return err
 				}
