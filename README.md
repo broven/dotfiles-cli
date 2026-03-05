@@ -119,6 +119,11 @@ link:
   vimrc:
     - ~/.vimrc
     - ~/.config/nvim/init.vim
+  # Object format: skip linking if target parent directory doesn't exist.
+  # Useful for app-specific configs that should only link when the app is installed.
+  goi_plugin:
+    path: ~/Library/Application Support/GOI/plugin/myscript.sh
+    require_target: true
 
 # Expand one source directory into many links.
 # Example: if repo has zsh/.zshrc and zsh/.zprofile,
@@ -150,6 +155,20 @@ homebrew:
 ```
 
 When `relink: true` is set, `dotfiles link` removes an existing destination path and recreates the symlink for mapped entries.
+
+Link mappings also support an object format with `require_target: true`. When set, the link is skipped (instead of creating parent directories) if the target's parent directory doesn't exist. This is useful for app-specific configs that should only be linked when the app is installed.
+
+```yaml
+link:
+  goi_plugin:
+    path: ~/Library/Application Support/GOI/plugin/myscript.sh
+    require_target: true
+  goi_scripts:
+    path:
+      - ~/Library/Application Support/GOI/plugin/script1.sh
+      - ~/Library/Application Support/GOI/plugin/script2.sh
+    require_target: true
+```
 
 Configured `npm` and `homebrew` namespaces are installed/updated by `dotfiles update`.  If `npm` or `brew` command is not found, it skips that namespace with a notification.
 
